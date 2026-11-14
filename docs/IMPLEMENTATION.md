@@ -27,7 +27,7 @@ Target: a single-teacher classroom trial with two distinct project rubrics, reus
 
 ## Pilot operational constraints
 
-- Rosters: additive import; normalize/deduplicate emails. Formal revocation UI is not yet implemented. Do not reuse an email for another person's account. Review roster entries before using real student data.
+- Rosters: additive import; normalize/deduplicate emails. Server-side `revokeStudent` is available; the teacher-facing revocation UI is not yet implemented. Do not reuse an email for another person's account. Review roster entries before using real student data.
 - Assignments: fixed criterion per student per session; presenter self-ratings excluded; if there are not enough eligible raters, show uncovered targets. Rotation and advanced minimum coverage are later configurations.
 - Ratings: autosaved by explicit save action on pilot UI; incomplete work remains a draft until submitted. A closed window does not silently submit.
 - Scores: display student mean and teacher-expert result independently, never apply an unexplained combined weight.

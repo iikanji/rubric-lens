@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import { getFirestore, FieldValue, type DocumentReference } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { HttpsError, onCall, type CallableRequest } from "firebase-functions/v2/https";
 import { allocateFixed, type Criterion, type Rater, type Target } from "./allocation";
 
@@ -44,11 +44,6 @@ async function ownClass(classId: string, uid: string) {
   if (!snap.exists || snap.get("ownerUid") !== uid)
     throw new HttpsError("permission-denied", "Class not found or inaccessible.");
   return { ref, value: snap.data()! };
-}
-async function activeMember(classId: string, uid: string) {
-  const snap = await db.doc(`classes/${classId}/members/${uid}`).get();
-  if (!snap.exists || snap.get("active") !== true)
-    throw new HttpsError("permission-denied", "Not an active class member.");
 }
 async function validPresentation(classId: string, sessionId: string, presentationId: string) {
   const sessionRef = db.doc(`classes/${classId}/sessions/${sessionId}`);
@@ -172,11 +167,14 @@ export const claimRosterInvitations = onCall(options, async req => {
     const memberRef = db.doc(`classes/${classId}/members/${actor.uid}`);
     await db.runTransaction(async tx => {
       const invite = await tx.get(inviteRef);
-      if (!invite.exists || invite.get("email") !== actor.email)
-        throw new HttpsError("permission-denied", "Roster invitation mismatch.");
+      const cls = await tx.get(db.doc(`classes/${classId}`));
+      const priorMember = await tx.get(memberRef);
+      if (!invite.exists || invite.get("email") !== actor.email || invite.get("revoked") === true)
+        throw new HttpsError("permission-denied", "Roster invitation missing or revoked.");
       if (invite.get("claimedUid") && invite.get("claimedUid") !== actor.uid)
         throw new HttpsError("permission-denied", "Roster entry already claimed.");
-      const cls = await tx.get(db.doc(`classes/${classId}`));
+      if (priorMember.exists && priorMember.get("active") === false)
+        throw new HttpsError("permission-denied", "Class membership disabled by teacher.");
       if (!cls.exists) throw new HttpsError("not-found", "Class removed.");
       tx.set(memberRef, { uid: actor.uid, name: invite.get("name"), email: actor.email, active: true }, { merge: true });
       tx.set(db.doc(`users/${actor.uid}`), {
@@ -341,28 +339,42 @@ export const saveStudentRating = onCall(options, async req => {
   const sessionId = requireId(data.sessionId);
   const presentationId = requireId(data.presentationId);
   const assignmentId = requireId(data.assignmentId);
-  await activeMember(classId, actor.uid);
-  const { pRef, presentation } = await validPresentation(classId, sessionId, presentationId);
-  if (presentation.window !== "open")
-    throw new HttpsError("failed-precondition", "Assessment window is not open.");
-  const assignment = await pRef.collection("assignments").doc(assignmentId).get();
-  if (!assignment.exists || assignment.get("raterUid") !== actor.uid)
-    throw new HttpsError("permission-denied", "This criterion is not assigned to you.");
+  const { pRef } = await validPresentation(classId, sessionId, presentationId);
   const score = data.score === null || data.score === undefined || data.score === "" ? null : Number(data.score);
-  const status = data.submit === true ? "submitted" : "draft";
-  if (score !== null && (!Number.isInteger(score) || score < assignment.get("minScore") || score > assignment.get("maxScore")))
-    throw new HttpsError("invalid-argument", "Score outside rubric scale.");
-  if (status === "submitted" && score === null)
-    throw new HttpsError("invalid-argument", "Select a score before submitting.");
   const comment = text(data.comment, 2500);
-  await pRef.collection("ratings").doc(assignmentId).set({
-    assignmentId, raterUid: actor.uid,
-    criterionId: assignment.get("criterionId"),
-    targetUid: assignment.get("targetUid"),
-    score, comment, status,
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(status === "submitted" ? { submittedAt: FieldValue.serverTimestamp() } : {}),
-  }, { merge: true });
+  const membershipRef = db.doc(`classes/${classId}/members/${actor.uid}`);
+  const assignmentRef = pRef.collection("assignments").doc(assignmentId);
+  const ratingRef = pRef.collection("ratings").doc(assignmentId);
+  const status = await db.runTransaction(async tx => {
+    // Check the window again atomically with the write. A submission that
+    // races a close must not be accepted after the close is committed.
+    const [member, p, assignment, previous] = await Promise.all([
+      tx.get(membershipRef), tx.get(pRef), tx.get(assignmentRef), tx.get(ratingRef),
+    ]);
+    if (!member.exists || member.get("active") !== true)
+      throw new HttpsError("permission-denied", "Not an active class member.");
+    if (p.get("window") !== "open")
+      throw new HttpsError("failed-precondition", "Assessment window is not open.");
+    if (!assignment.exists || assignment.get("raterUid") !== actor.uid)
+      throw new HttpsError("permission-denied", "This criterion is not assigned to you.");
+    if (score !== null && (!Number.isInteger(score) || score < assignment.get("minScore") || score > assignment.get("maxScore")))
+      throw new HttpsError("invalid-argument", "Score outside rubric scale.");
+    if (data.submit === true && score === null)
+      throw new HttpsError("invalid-argument", "Select a score before submitting.");
+    // A revision to an already-submitted rating remains submitted. Autosave
+    // must not demote it or make it silently disappear from aggregation.
+    const nextStatus = data.submit === true || (previous.exists && previous.get("status") === "submitted")
+      ? "submitted" : "draft";
+    tx.set(ratingRef, {
+      assignmentId, raterUid: actor.uid,
+      criterionId: assignment.get("criterionId"),
+      targetUid: assignment.get("targetUid"),
+      score, comment, status: nextStatus,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(data.submit === true ? { submittedAt: FieldValue.serverTimestamp() } : {}),
+    }, { merge: true });
+    return nextStatus;
+  });
   return { saved: true, status };
 });
 
@@ -458,4 +470,24 @@ export const getTeacherPresentation = onCall(options, async req => {
     });
   });
   return { presentation: { id: presentationId, ...presentation }, assignments, experts, results };
+});
+
+/** Disables a member and revokes their roster invitation without deleting audit data. */
+export const revokeStudent = onCall(options, async req => {
+  const actor = teacher(req);
+  const data = input(req.data);
+  const classId = requireId(data.classId);
+  const uid = requireId(data.uid);
+  await ownClass(classId, actor.uid);
+  const memberRef = db.doc(`classes/${classId}/members/${uid}`);
+  const member = await memberRef.get();
+  if (!member.exists) throw new HttpsError("not-found", "Student not enrolled.");
+  const key = sha(email(member.get("email")));
+  const batch = db.batch();
+  batch.update(memberRef, { active: false, revokedAt: FieldValue.serverTimestamp() });
+  batch.set(db.doc(`classes/${classId}/invites/${key}`), {
+    revoked: true, revokedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await batch.commit();
+  return { revoked: true };
 });

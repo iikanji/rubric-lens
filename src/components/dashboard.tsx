@@ -35,13 +35,15 @@ export default function Dashboard() {
         if (current) {
           try {
             // Only allowlisted teachers succeed here. All others are students.
+            let isTeacher = false;
             try {
               await call("bootstrapTeacher");
               await current.getIdToken(true);
+              isTeacher = true;
             } catch {
-              // No teacher privilege: proceed through verified roster enrollment.
+              // Not on the teacher allowlist; try roster-linked student enrollment.
             }
-            await call("claimRosterInvitations");
+            if (!isTeacher) await call("claimRosterInvitations");
             await refresh();
           } catch (err) {
             setError(errorText(err));
