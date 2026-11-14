@@ -20,6 +20,7 @@ test("criterion is stable across presentations", () => {
   const next = allocateFixed(raters, [{ uid: "u2", displayName: "Other" }], criteria, "session", "p2");
   for (const a of first.assignments) {
     const subsequent = next.assignments.filter((b) => b.raterUid === a.raterUid);
+    if (a.raterUid === "u2") continue; // Now presenting; excluded by design.
     assert.ok(subsequent.length > 0);
     assert.ok(subsequent.every((b) => b.criterionId === a.criterionId));
   }

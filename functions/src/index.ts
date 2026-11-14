@@ -176,12 +176,12 @@ export const claimRosterInvitations = onCall(options, async req => {
         throw new HttpsError("permission-denied", "Roster invitation mismatch.");
       if (invite.get("claimedUid") && invite.get("claimedUid") !== actor.uid)
         throw new HttpsError("permission-denied", "Roster entry already claimed.");
+      const cls = await tx.get(db.doc(`classes/${classId}`));
+      if (!cls.exists) throw new HttpsError("not-found", "Class removed.");
       tx.set(memberRef, { uid: actor.uid, name: invite.get("name"), email: actor.email, active: true }, { merge: true });
       tx.set(db.doc(`users/${actor.uid}`), {
         displayName: actor.name, email: actor.email, role: "student", updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      const cls = await tx.get(db.doc(`classes/${classId}`));
-      if (!cls.exists) throw new HttpsError("not-found", "Class removed.");
       tx.set(db.doc(`users/${actor.uid}/classes/${classId}`), { name: cls.get("name"), classId });
       tx.set(inviteRef, { claimedUid: actor.uid }, { merge: true });
     });
