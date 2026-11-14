@@ -1,85 +1,69 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function teacher() { return signedIn() && request.auth.token.teacher == true; }
+    function classOwner(classId) {
+      return teacher() &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.ownerUid == request.auth.uid;
     }
-    function isTeacher() {
-      return signedIn() && request.auth.token.teacher == true;
-    }
-    function isOwner() {
-      return isTeacher() && resource.data.ownerUid == request.auth.uid;
-    }
-    function isClassTeacher(classId) {
-      return isTeacher()
-        && get(/databases/$(database)/documents/classes/$(classId)).data.ownerUid == request.auth.uid;
+    function enrolled(classId, uid) {
+      return signedIn() && request.auth.uid == uid &&
+        get(/databases/$(database)/documents/classes/$(classId)/members/$(uid)).data.active == true;
     }
 
-    // All mutations use trusted callable Functions. Authentication alone never
-    // permits a user to enroll themselves or publish / modify feedback.
-    match /projects/{projectId} {
-      allow get, list: if isOwner();
-      allow write: if false;
-    }
-    match /rubrics/{rubricId} {
-      allow get, list: if isOwner();
-      allow write: if false;
-    }
+    // All writes go through trusted callable functions; a user cannot
+    // self-assign, self-enroll, alter roles or bypass feedback gates.
     match /classes/{classId} {
-      allow get, list: if isOwner();
+      allow get, list: if teacher() && resource.data.ownerUid == request.auth.uid;
       allow write: if false;
-
-      match /invites/{emailHash} {
-        allow read: if isClassTeacher(classId);
+      match /invites/{invitation} {
+        allow get, list: if classOwner(classId);
         allow write: if false;
       }
       match /members/{uid} {
-        allow get: if isClassTeacher(classId) || (signedIn() && request.auth.uid == uid);
-        allow list: if isClassTeacher(classId);
+        allow get, list: if classOwner(classId);
         allow write: if false;
       }
       match /sessions/{sessionId} {
-        allow read: if isClassTeacher(classId);
+        allow get, list: if classOwner(classId);
         allow write: if false;
-
         match /presentations/{presentationId} {
-          allow read: if isClassTeacher(classId);
+          allow get, list: if classOwner(classId);
           allow write: if false;
-
           match /assignments/{assignmentId} {
-            allow get: if isClassTeacher(classId)
-              || (signedIn() && resource.data.raterUid == request.auth.uid);
-            allow list: if isClassTeacher(classId);
+            allow get, list: if classOwner(classId);
             allow write: if false;
           }
           match /ratings/{assignmentId} {
-            allow get: if isClassTeacher(classId)
-              || (signedIn() && resource.data.raterUid == request.auth.uid);
-            allow list: if isClassTeacher(classId);
+            allow get, list: if classOwner(classId);
+            allow write: if false;
+          }
+          match /expertRatings/{ratingId} {
+            allow get, list: if classOwner(classId);
             allow write: if false;
           }
         }
       }
     }
-    // Per-user projections contain ONLY that user's membership and assignments.
+    match /rubrics/{rubricId} {
+      allow get, list: if teacher() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
     match /users/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
       allow list, write: if false;
       match /classes/{classId} {
-        allow get, list: if signedIn() && request.auth.uid == uid;
-        allow write: if false;
+        allow get: if enrolled(classId, uid);
+        allow list, write: if false;
       }
       match /assignments/{assignmentId} {
-        allow get, list: if signedIn() && request.auth.uid == uid;
-        allow write: if false;
+        allow get: if enrolled(resource.data.classId, uid);
+        allow list, write: if false;
       }
     }
-    // Secret email hashes / invitations are never client-readable.
-    match /emailInvites/{hash}/{path=**} {
-      allow read, write: if false;
-    }
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /projects/{projectId} { allow read, write: if false; }
+    match /emailInvites/{hash}/{document=**} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }

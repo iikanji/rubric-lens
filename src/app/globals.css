@@ -1,0 +1,68 @@
+:root {
+  color-scheme: light;
+  --background: #f4f6f8;
+  --surface: #ffffff;
+  --text: #172435;
+  --muted: #607084;
+  --border: #dce2e8;
+  --primary: #164a72;
+  --primary-soft: #e8f0f7;
+  --danger: #9a2e3f;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--background); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, sans-serif; line-height: 1.48; }
+button, input, textarea, select { font: inherit; }
+button { padding: .64rem .9rem; border: 1px solid var(--primary); color: white; background: var(--primary); border-radius: 8px; cursor: pointer; }
+button:hover { filter: brightness(.94); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+button.secondary { background: white; border-color: var(--border); color: var(--text); }
+button.link { color: var(--primary); background: none; border: 0; padding: .3rem; }
+input, textarea, select { width: 100%; max-width: 100%; background: white; padding: .58rem .65rem; color: var(--text); border: 1px solid #b8c6d2; border-radius: 7px; }
+textarea { min-height: 82px; resize: vertical; }
+input[type="checkbox"] { width: auto; }
+label { display: block; font-weight: 600; font-size: .93rem; }
+label > input, label > textarea, label > select { display: block; margin-top: .25rem; }
+small, .muted { color: var(--muted); }
+a { color: var(--primary); }
+h1, h2, h3 { line-height: 1.2; }
+h1 { font-size: 1.65rem; }
+h2 { font-size: 1.3rem; margin-top: 0; }
+h3 { font-size: 1.05rem; }
+p { margin: .55rem 0 1rem; }
+header.top { background: var(--surface); border-bottom: 1px solid var(--border); }
+header.top .inner { max-width: 1200px; margin: 0 auto; padding: 1rem 1.2rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.brand { font-weight: 800; font-size: 1.25rem; letter-spacing: -.02em; }
+.tagline { font-size: .82rem; color: var(--muted); font-weight: 400; }
+main { max-width: 1200px; margin: 1.4rem auto; padding: 0 1.2rem 3rem; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; }
+.soft { background: var(--primary-soft); }
+.stack { display: grid; gap: .85rem; }
+.two { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.three { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+.row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+.row.between { justify-content: space-between; }
+.radio { display: inline-flex; align-items: center; gap: .35rem; font-weight: 400; }
+.notice { padding: .75rem 1rem; background: #fff8ed; border: 1px solid #ead2a9; border-radius: 8px; margin: .8rem 0; }
+.error { padding: .75rem 1rem; color: var(--danger); background: #fff0f2; border: 1px solid #eccbd0; border-radius: 8px; margin: .8rem 0; overflow-wrap: anywhere; }
+.success { color: #176341; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { border-bottom: 1px solid var(--border); text-align: left; padding: .5rem .65rem; vertical-align: top; }
+th { color: var(--muted); font-weight: 700; }
+.table-scroll { overflow-x: auto; }
+.center { text-align: center; }
+.pill { display: inline-block; padding: .18rem .5rem; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: .78rem; white-space: nowrap; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(255px,1fr)); gap: .7rem; }
+.card { border: 1px solid var(--border); border-radius: 9px; padding: .8rem; }
+.subtle { background: #fafbfc; border: 1px solid var(--border); padding: .8rem; border-radius: 8px; }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .83rem; }
+.limit { max-width: 660px; margin: 8vh auto; }
+@media(max-width:720px) {
+  .two, .three { grid-template-columns: 1fr; }
+  main { margin-top: 1rem; }
+  .panel { padding: .95rem; }
+  header.top .inner { padding: .8rem; }
+  .tagline { display: none; }
+  th, td { padding: .35rem; font-size: .84rem; }
+}
