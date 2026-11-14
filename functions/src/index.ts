@@ -452,7 +452,14 @@ export const getTeacherPresentation = onCall(options, async req => {
     pRef.collection("expertRatings").limit(200).get(),
   ]);
   const ratings = new Map(r.docs.map(d => [d.id, d.data()]));
-  const assignments = a.docs.map(d => ({ id: d.id, ...d.data(), rating: ratings.get(d.id) ?? null }));
+  const assignments = a.docs.map(d => ({
+    id: d.id,
+    raterUid: d.get("raterUid") as string,
+    criterionId: d.get("criterionId") as string,
+    targetUid: (d.get("targetUid") ?? null) as string | null,
+    targetName: d.get("targetName") as string,
+    rating: ratings.get(d.id) ?? null,
+  }));
   const experts = e.docs.map(d => d.data());
   const results = criteria.flatMap(c => {
     const targets = c.scope === "group"
