@@ -1,0 +1,7 @@
+# Firebase App Hosting is provisioned separately in Firebase Console/CLI.
+# This file controls run resources, not database or authentication setup.
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 2
