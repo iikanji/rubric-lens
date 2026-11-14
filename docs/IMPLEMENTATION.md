@@ -36,11 +36,11 @@ Target: a single-teacher classroom trial with two distinct project rubrics, reus
 
 ## Set up and run
 
-1. Create a dedicated Firebase project (Firestore, Authentication, Functions enabled). Enable the Google provider in Authentication and authorize your application domain.
+1. Use Firebase project `rubric-lens-027` (project number `574540236485`). Enable Firestore, Authentication with Google provider, and Cloud Functions. Authorize the web app's domain before testing Google Sign-In.
 2. Run `npm install` and `npm --prefix functions install`.
 3. Copy `.env.local.example` to `.env.local`, and provide the Firebase web app configuration (public identifiers, not secret service-account credentials).
-4. Configure `functions/.env.<project-id>` using `functions/.env.example` and add the teacher's verified email to `TEACHER_EMAILS`. Do **not** commit that file.
-5. Select your Firebase project with `firebase use --add`, then deploy Functions and Firestore rules. Never use an uncontrolled production project for test data.
+4. Configure `functions/.env.rubric-lens-027` using `functions/.env.example` and add the teacher's verified email to `TEACHER_EMAILS`. Do **not** commit that file.
+5. Firebase CLI default project is pinned in `.firebaserc`. Verify with `firebase use` and deploy Functions and Firestore rules only after reviewing permissions and enabling billing. Never use an uncontrolled production project for test data.
 6. Run `npm run dev`. For emulators, set `NEXT_PUBLIC_USE_EMULATORS=true`, start `firebase emulators:start --only auth,firestore,functions`, and run the app locally.
 7. Test across two distinct student identities before importing real rosters.
 

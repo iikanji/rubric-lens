@@ -24,9 +24,9 @@ The `codex/pilot-foundation` branch includes a Next.js App Router / React / Type
 
 1. Install Node.js 22 and the Firebase CLI.
 2. In the repository root, run `npm install` and `npm --prefix functions install`.
-3. Create a dedicated Firebase project and enable Google Authentication, Firestore, and Cloud Functions.
-4. Copy `.env.local.example` to `.env.local`; enter the project's Firebase web configuration.
-5. Copy `functions/.env.example` to `functions/.env.<your-project-id>`; put the teacher's verified Google address into `TEACHER_EMAILS`. Keep that file out of Git. Optionally configure `STUDENT_EMAIL_DOMAIN`.
+3. Use the existing Firebase project `rubric-lens-027`; enable Google Authentication, Firestore, and Cloud Functions. Project number: `574540236485`. Do not create a second project.
+4. Copy `.env.local.example` to `.env.local`; project ID, Auth domain, and messaging sender ID are prefilled. Copy **only** the Web App API key and App ID from Firebase Console → Project settings → Your apps. Do not commit `.env.local`.
+5. Copy `functions/.env.example` to `functions/.env.rubric-lens-027`; put the teacher's verified Google address into `TEACHER_EMAILS`. Keep that file out of Git. Optionally configure `STUDENT_EMAIL_DOMAIN`.
 6. Run the emulators with `npx firebase-tools emulators:start --only auth,firestore,functions` (set `NEXT_PUBLIC_USE_EMULATORS=true` in the Next.js env).
 7. Start Next.js with `npm run dev`.
 8. Before using a real school roster, run all checks and verify at least two distinct synthetic student accounts.
