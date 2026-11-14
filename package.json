@@ -1,0 +1,29 @@
+{
+  "name": "rubric-lens",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test:allocation": "npm --prefix functions test",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-rubric-lens \"node --test tests/firestore.rules.test.mjs\"",
+    "test": "npm run test:allocation && npm run test:rules"
+  },
+  "dependencies": {
+    "firebase": "^12.4.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "firebase-tools": "^14.16.0",
+    "typescript": "^5.8.0"
+  }
+}
