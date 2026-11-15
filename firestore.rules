@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function teacher() { return signedIn() && request.auth.token.teacher == true; }
+    function classOwner(classId) {
+      return teacher() &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.ownerUid == request.auth.uid;
+    }
+    function enrolled(classId, uid) {
+      return signedIn() && request.auth.uid == uid &&
+        get(/databases/$(database)/documents/classes/$(classId)/members/$(uid)).data.active == true;
+    }
+
+    // All writes go through trusted callable functions; a user cannot
+    // self-assign, self-enroll, alter roles or bypass feedback gates.
+    match /classes/{classId} {
+      allow get, list: if teacher() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+      match /invites/{invitation} {
+        allow get, list: if classOwner(classId);
+        allow write: if false;
+      }
+      match /members/{uid} {
+        allow get, list: if classOwner(classId);
+        allow write: if false;
+      }
+      match /sessions/{sessionId} {
+        allow get, list: if classOwner(classId);
+        allow write: if false;
+        match /presentations/{presentationId} {
+          allow get, list: if classOwner(classId);
+          allow write: if false;
+          match /assignments/{assignmentId} {
+            allow get, list: if classOwner(classId);
+            allow write: if false;
+          }
+          match /ratings/{assignmentId} {
+            allow get, list: if classOwner(classId);
+            allow write: if false;
+          }
+          match /expertRatings/{ratingId} {
+            allow get, list: if classOwner(classId);
+            allow write: if false;
+          }
+        }
+      }
+    }
+    match /rubrics/{rubricId} {
+      allow get, list: if teacher() && resource.data.ownerUid == request.auth.uid;
+      allow write: if false;
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+      match /classes/{classId} {
+        allow get: if enrolled(classId, uid);
+        allow list, write: if false;
+      }
+      match /assignments/{assignmentId} {
+        allow get: if enrolled(resource.data.classId, uid);
+        allow list, write: if false;
+      }
+    }
+    match /projects/{projectId} { allow read, write: if false; }
+    match /emailInvites/{hash}/{document=**} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
