@@ -518,7 +518,7 @@ export const addRosterStudent = onCall(options, async req => {
   const address = email(data.email);
   const name = text(data.name, 100);
   const domain = (process.env.STUDENT_EMAIL_DOMAIN || "").toLowerCase().trim();
-  if (!name || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address))
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address))
     throw new HttpsError("invalid-argument", "Valid name and email required.");
   if (domain && !address.endsWith("@" + domain))
     throw new HttpsError("invalid-argument", "Email is outside the configured school domain.");
@@ -544,7 +544,7 @@ export const editRosterStudent = onCall(options, async req => {
   const newEmail = email(data.email);
   const name = text(data.name, 100);
   const domain = (process.env.STUDENT_EMAIL_DOMAIN || "").toLowerCase().trim();
-  if (!name || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(newEmail))
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail))
     throw new HttpsError("invalid-argument", "Valid name and email required.");
   if (domain && !newEmail.endsWith("@" + domain))
     throw new HttpsError("invalid-argument", "Email is outside the configured school domain.");
