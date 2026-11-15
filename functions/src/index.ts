@@ -141,12 +141,15 @@ export const importRoster = onCall(options, async req => {
       throw new HttpsError("invalid-argument", "Duplicate roster email: " + address);
     entries.set(address, name);
   }
-  // Additive import only. Revocation and record replacement will have dedicated audited actions.
+  // Never re-enable an invitation that was explicitly removed or revoked.
+  const existing = await db.getAll(...[...entries.keys()].map(address => db.doc(`classes/${classId}/invites/${sha(address)}`)));
+  if (existing.some(doc => doc.exists && (doc.get("revoked") === true || doc.get("claimedUid"))))
+    throw new HttpsError("failed-precondition", "One or more roster entries already exist or were removed. Edit them individually instead.");
   const batch = db.batch();
   for (const [address, name] of entries) {
     const key = sha(address);
     batch.set(db.doc(`classes/${classId}/invites/${key}`), {
-      name, email: address, classId, createdAt: FieldValue.serverTimestamp(),
+      name, email: address, classId, revoked: false, createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     batch.set(db.doc(`emailInvites/${key}/classes/${classId}`), {
       classId, createdAt: FieldValue.serverTimestamp(),
@@ -430,8 +433,11 @@ export const getTeacherClass = onCall(options, async req => {
   return {
     class: { id: classId, name: value.name, projectName: value.projectName },
     rubric: rubric?.exists ? { id: rubric.id, title: rubric.get("title"), criteria: rubric.get("criteria") } : null,
-    members: roster.docs.map(d => ({ uid: d.id, name: d.get("name"), email: d.get("email") })),
-    invitations: invitations.docs.map(d => ({ name: d.get("name"), email: d.get("email"), claimed: !!d.get("claimedUid") })),
+    members: roster.docs.map(d => ({ uid: d.id, name: d.get("name"), email: d.get("email"), active: d.get("active") === true })),
+    invitations: invitations.docs.filter(d => d.get("revoked") !== true).map(d => ({
+      name: d.get("name"), email: d.get("email"), claimed: !!d.get("claimedUid"),
+      order: typeof d.get("order") === "number" ? d.get("order") : null,
+    })).sort((a,b) => (a.order ?? 100000) - (b.order ?? 100000) || a.name.localeCompare(b.name)),
     sessions: sessionList,
   };
 });
@@ -497,4 +503,129 @@ export const revokeStudent = onCall(options, async req => {
   }, { merge: true });
   await batch.commit();
   return { revoked: true };
+});
+
+/**
+ * Teacher-only roster editor. Unclaimed invitations can be changed or removed.
+ * Claimed accounts retain their verified email identity; removal revokes access
+ * without deleting historical assessment records.
+ */
+export const addRosterStudent = onCall(options, async req => {
+  const actor = teacher(req);
+  const data = input(req.data);
+  const classId = requireId(data.classId);
+  await ownClass(classId, actor.uid);
+  const address = email(data.email);
+  const name = text(data.name, 100);
+  const domain = (process.env.STUDENT_EMAIL_DOMAIN || "").toLowerCase().trim();
+  if (!name || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(address))
+    throw new HttpsError("invalid-argument", "Valid name and email required.");
+  if (domain && !address.endsWith("@" + domain))
+    throw new HttpsError("invalid-argument", "Email is outside the configured school domain.");
+  const key = sha(address);
+  const ref = db.doc(`classes/${classId}/invites/${key}`);
+  const indexRef = db.doc(`emailInvites/${key}/classes/${classId}`);
+  await db.runTransaction(async tx => {
+    const previous = await tx.get(ref);
+    if (previous.exists)
+      throw new HttpsError("already-exists", "This email was previously invited. Edit the existing entry or contact an administrator.");
+    tx.create(ref, { name, email: address, classId, revoked: false, createdAt: FieldValue.serverTimestamp() });
+    tx.set(indexRef, { classId, createdAt: FieldValue.serverTimestamp() });
+  });
+  return { added: true };
+});
+
+export const editRosterStudent = onCall(options, async req => {
+  const actor = teacher(req);
+  const data = input(req.data);
+  const classId = requireId(data.classId);
+  await ownClass(classId, actor.uid);
+  const originalEmail = email(data.originalEmail);
+  const newEmail = email(data.email);
+  const name = text(data.name, 100);
+  const domain = (process.env.STUDENT_EMAIL_DOMAIN || "").toLowerCase().trim();
+  if (!name || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(newEmail))
+    throw new HttpsError("invalid-argument", "Valid name and email required.");
+  if (domain && !newEmail.endsWith("@" + domain))
+    throw new HttpsError("invalid-argument", "Email is outside the configured school domain.");
+  const originalKey = sha(originalEmail);
+  const newKey = sha(newEmail);
+  const originalRef = db.doc(`classes/${classId}/invites/${originalKey}`);
+  const replacementRef = db.doc(`classes/${classId}/invites/${newKey}`);
+  const originalIndex = db.doc(`emailInvites/${originalKey}/classes/${classId}`);
+  const replacementIndex = db.doc(`emailInvites/${newKey}/classes/${classId}`);
+  await db.runTransaction(async tx => {
+    const original = await tx.get(originalRef);
+    const replacement = newKey !== originalKey ? await tx.get(replacementRef) : null;
+    const memberRef = original.exists && original.get("claimedUid")
+      ? db.doc(`classes/${classId}/members/${original.get("claimedUid")}`) : null;
+    const member = memberRef ? await tx.get(memberRef) : null;
+    if (!original.exists || original.get("revoked") === true)
+      throw new HttpsError("not-found", "Active roster entry not found.");
+    if (replacement?.exists)
+      throw new HttpsError("already-exists", "The replacement email already exists in this roster.");
+    if (memberRef && newKey !== originalKey)
+      throw new HttpsError("failed-precondition", "A joined student's Google email cannot be changed. Remove access and invite the new account separately.");
+    if (newKey === originalKey) {
+      tx.update(originalRef, { name, updatedAt: FieldValue.serverTimestamp() });
+    } else {
+      tx.create(replacementRef, {
+        name, email: newEmail, classId, revoked: false,
+        order: original.get("order") ?? null, createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(replacementIndex, { classId, createdAt: FieldValue.serverTimestamp() });
+      tx.delete(originalRef);
+      tx.delete(originalIndex);
+    }
+    if (memberRef && member?.exists) tx.update(memberRef, { name });
+  });
+  return { updated: true };
+});
+
+export const removeRosterStudent = onCall(options, async req => {
+  const actor = teacher(req);
+  const data = input(req.data);
+  const classId = requireId(data.classId);
+  await ownClass(classId, actor.uid);
+  const address = email(data.email);
+  const key = sha(address);
+  const ref = db.doc(`classes/${classId}/invites/${key}`);
+  const indexRef = db.doc(`emailInvites/${key}/classes/${classId}`);
+  await db.runTransaction(async tx => {
+    const entry = await tx.get(ref);
+    const memberRef = entry?.exists && entry.get("claimedUid")
+      ? db.doc(`classes/${classId}/members/${entry.get("claimedUid")}`) : null;
+    const member = memberRef ? await tx.get(memberRef) : null;
+    if (!entry.exists || entry.get("revoked") === true)
+      throw new HttpsError("not-found", "Active roster entry not found.");
+    if (memberRef) {
+      // Keep the tombstone so a previously enrolled identity cannot rejoin.
+      tx.update(ref, { revoked: true, revokedAt: FieldValue.serverTimestamp() });
+      if (member?.exists) tx.update(memberRef, { active: false, revokedAt: FieldValue.serverTimestamp() });
+    } else {
+      tx.delete(ref);
+    }
+    tx.delete(indexRef);
+  });
+  return { removed: true };
+});
+
+export const reorderRoster = onCall(options, async req => {
+  const actor = teacher(req);
+  const data = input(req.data);
+  const classId = requireId(data.classId);
+  await ownClass(classId, actor.uid);
+  if (!Array.isArray(data.emails) || data.emails.length > 150)
+    throw new HttpsError("invalid-argument", "Invalid roster ordering.");
+  const emails = data.emails.map(email);
+  if (new Set(emails).size !== emails.length)
+    throw new HttpsError("invalid-argument", "Duplicate email in roster ordering.");
+  const refs = emails.map(address => db.doc(`classes/${classId}/invites/${sha(address)}`));
+  await db.runTransaction(async tx => {
+    const snapshots = await Promise.all(refs.map(ref => tx.get(ref)));
+    if (snapshots.some((snap,i) => !snap.exists || snap.get("revoked") === true || snap.get("email") !== emails[i]))
+      throw new HttpsError("failed-precondition", "Roster changed. Refresh and retry.");
+    refs.forEach((ref,i) => tx.update(ref, { order: i }));
+  });
+  return { reordered: true };
 });

@@ -13,8 +13,8 @@ export type CriterionDraft = Omit<Criterion, "id" | "minScore" | "maxScore">;
 
 export type ProjectClass = { id: string; name: string; projectName?: string };
 export type ClassList = { role: "teacher" | "student"; classes: ProjectClass[] };
-export type Student = { uid: string; name: string; email: string };
-export type Invitation = { name: string; email: string; claimed: boolean };
+export type Student = { uid: string; name: string; email: string; active: boolean };
+export type Invitation = { name: string; email: string; claimed: boolean; order: number | null };
 export type PresentationSummary = {
   id: string;
   title: string;

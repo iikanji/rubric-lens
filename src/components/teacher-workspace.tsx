@@ -3,6 +3,7 @@
 import { type ChangeEvent, useCallback, useEffect, useState } from "react";
 import { call } from "@/lib/firebase";
 import { parseRosterCsv, type RosterRow } from "@/lib/csv";
+import RosterManager from "@/components/roster-manager";
 import type { ClassDetail, CriterionDraft, PresentationDetail, ProjectClass, SessionSummary } from "@/lib/types";
 
 const defaultCriteria: CriterionDraft[] = [
@@ -214,10 +215,15 @@ export default function TeacherWorkspace({ classes, refreshClasses }: Props) {
                 {rosterPreview.length > 8 && <small>Showing the first eight entries for review.</small>}
               </div>
             )}
-            <div className="row"><span>{details.invitations.length} invited</span><span>·</span><span>{details.members.length} signed in</span></div>
-            {details.members.length > 0 && <div className="table-scroll"><table><thead><tr><th>Student</th><th>School email</th></tr></thead><tbody>
-              {details.members.map(m => <tr key={m.uid}><td>{m.name}</td><td>{m.email}</td></tr>)}
-            </tbody></table></div>}
+            <RosterManager
+              classId={selectedClassId}
+              invitations={details.invitations}
+              members={details.members}
+              busy={busy}
+              run={act}
+              reload={() => reloadClass(selectedClassId)}
+              notify={setMessage}
+            />
           </section>
 
           {!details.rubric ? (
