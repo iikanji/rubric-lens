@@ -46,3 +46,24 @@ test("student-ineligible criteria are never allocated", () => {
   const { assignments } = allocateFixed(raters, presenters, c, "session", "p1");
   assert.ok(assignments.every((a) => a.criterionId !== "expert"));
 });
+
+test("three enrolled students: one presenter and two raters cover both criteria", () => {
+  const students = [
+    { uid: "douglas1", displayName: "Douglas Test 01" },
+    { uid: "ayako", displayName: "Ayako Test" },
+    { uid: "douglas2", displayName: "Douglas Test 02" },
+  ];
+  for (const presenter of students) {
+    const result = allocateFixed(students, [presenter], criteria, "pilot-session", "presentation");
+    assert.deepEqual(result.uncovered, []);
+    assert.equal(result.assignments.length, 2);
+    assert.deepEqual(new Set(result.assignments.map(a => a.criterionId)), new Set(["org", "eye"]));
+    assert.ok(result.assignments.every(a => a.raterUid !== presenter.uid));
+  }
+});
+
+test("reports missing coverage when there are fewer raters than criteria", () => {
+  const result = allocateFixed(raters.slice(0, 2), [presenters[0]], criteria, "s", "p");
+  assert.equal(result.assignments.length, 1);
+  assert.equal(result.uncovered.length, 1);
+});

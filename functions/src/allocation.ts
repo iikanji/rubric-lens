@@ -58,10 +58,12 @@ export function allocateFixed(
   if (!availableCriteria.length || !presenters.length) {
     return { assignments: [], uncovered: [] };
   }
+  // Allocate after excluding presenters. Otherwise a presenter can consume
+  // the only slot for a criterion and leave it uncovered despite enough raters.
+  const eligibleRaters = allRaters.filter(rater => !presenterIds.has(rater.uid));
   const byCriterion = new Map<string, Rater[]>();
-  allRaters.forEach((rater, index) => {
+  eligibleRaters.forEach((rater, index) => {
     const criterion = availableCriteria[index % availableCriteria.length];
-    if (presenterIds.has(rater.uid)) return;
     const array = byCriterion.get(criterion.id) ?? [];
     array.push(rater);
     byCriterion.set(criterion.id, array);
