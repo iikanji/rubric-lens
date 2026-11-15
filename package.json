@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test:allocation": "npm --prefix functions test",
     "test:rules": "firebase emulators:exec --only firestore --project demo-rubric-lens \"node --test tests/firestore.rules.test.mjs\"",
+    "test:authz": "npm --prefix functions run build && node scripts/run-authz-emulators.mjs",
     "test": "npm run test:allocation && npm run test:rules"
   },
   "dependencies": {
