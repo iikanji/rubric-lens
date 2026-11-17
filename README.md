@@ -51,3 +51,7 @@ See [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) for schema, permission boun
 - Peer mean and expert result remain separate; no arbitrary combined official grade.
 - Student access is tied to verified roster membership, not merely successful Google Sign-In.
 - Feedback and reflections require a later release gate before classroom use.
+
+## AI agent-system documentation (proposed)
+
+The [agent-system documentation](docs/agent-system/README.md) defines specialist responsibilities, governance, support automation design, and review/approval workflows. [AGENTS.md](AGENTS.md) holds repository-wide AI coding instructions; [.codex/config.toml](.codex/config.toml) registers proposed Codex specialist roles. These files do not start a persistent support agent, authorize access to student data, or enable automatic releases.
