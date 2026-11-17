@@ -1,0 +1,30 @@
+# Rubric Lens project-scoped Codex specialist roles.
+# Loading this configuration depends on the Codex client/version and project trust.
+# Role prompts are behavioral guidance, NOT technical access-control enforcement.
+
+[agents]
+enabled = true
+
+[agents.engineering]
+description = "Implement approved, scoped Rubric Lens changes on an isolated branch with tests and review notes."
+config_file = "agents/engineering.toml"
+
+[agents.qa]
+description = "Independently reproduce defects and test classroom/session lifecycle, criterion allocation, and access constraints."
+config_file = "agents/qa.toml"
+
+[agents.security]
+description = "Review authorization, privacy and release boundaries; report verified findings and missing assurance."
+config_file = "agents/security.toml"
+
+[agents.requirements]
+description = "Trace user-approved assessment and lifecycle requirements to code, tests and unresolved gaps."
+config_file = "agents/requirements.toml"
+
+[agents.documentation]
+description = "Maintain accurate developer/user documentation and distinguish implemented, proposed and unverified behavior."
+config_file = "agents/documentation.toml"
+
+[agents.support_investigation]
+description = "Investigate sanitized support tickets and produce evidence-based troubleshooting or technical handoffs."
+config_file = "agents/support-investigation.toml"
